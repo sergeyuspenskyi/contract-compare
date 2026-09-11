@@ -7,31 +7,29 @@ export const statuses = [
   'added',
 ] as const;
 
-const confidenceLevels = [
-  'high',
-  'medium',
-  'low',
-] as const;
-
 export const clauseSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   name: z.string(),
   status: z.enum(statuses),
 
-  companySection: z.string().nullable().optional(),
-  clientSection: z.string().nullable().optional(),
+  companySection: z.string().nullable(),
+  clientSection: z.string().nullable(),
 
-  companyPosition: z.string().nullable().optional(),
-  clientPosition: z.string().nullable().optional(),
+  companyPosition: z.string().nullable(),
+  clientPosition: z.string().nullable(),
 
-  companySourceText: z.string().nullable().optional(),
-  clientSourceText: z.string().nullable().optional(),
+  companySourceText: z.string().nullable(),
+  clientSourceText: z.string().nullable(),
 
   difference: z.string(),
 
-  suggestedAction: z.string().nullable().optional(),
+  suggestedAction: z.string().nullable(),
 
-  confidence: z.enum(confidenceLevels).default('medium'),
+  confidence: z.enum([
+    'high',
+    'medium',
+    'low',
+  ]),
 });
 
 export const comparisonSchema = z.object({
@@ -45,35 +43,11 @@ export const comparisonSchema = z.object({
   clauses: z.array(clauseSchema),
 });
 
-export type ComparisonResult = {
-  summary: {
-    aligned: number;
-    modified: number;
-    missing: number;
-    added: number;
-  };
-  clauses: Clause[];
-};
+export type ComparisonResult =
+  z.infer<typeof comparisonSchema>;
 
-export type Clause = {
-  id: string;
-  name: string;
-  status: typeof statuses[number];
-
-  companySection: string | null;
-  clientSection: string | null;
-
-  companyPosition: string | null;
-  clientPosition: string | null;
-
-  companySourceText: string | null;
-  clientSourceText: string | null;
-
-  difference: string;
-  suggestedAction: string | null;
-
-  confidence: typeof confidenceLevels[number];
-};
+export type Clause =
+  z.infer<typeof clauseSchema>;
 
 export type Status = Clause['status'];
 
@@ -89,24 +63,6 @@ function normalizeText(value: string): string {
     .toLowerCase();
 }
 
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^\w\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .slice(0, 80);
-}
-
-/**
- * Checks whether a source excerpt is reasonably supported
- * by the extracted document text.
- *
- * We first attempt normalized substring matching.
- * If PDF extraction changed punctuation/spacing slightly,
- * we allow strong token overlap.
- */
 function sourceIsSupported(
   documentText: string,
   sourceText: string,
@@ -114,12 +70,23 @@ function sourceIsSupported(
   const document = normalizeText(documentText);
   const source = normalizeText(sourceText);
 
-  if (!source) return false;
+  if (!source) {
+    return false;
+  }
 
+  // Best case: normalized excerpt exists directly
+  // in the extracted document.
   if (document.includes(source)) {
     return true;
   }
 
+  /*
+   * PDF extraction can slightly change spaces,
+   * punctuation and line breaks.
+   *
+   * Therefore use word overlap as a fallback
+   * rather than rejecting the entire AI result.
+   */
   const sourceWords = source
     .split(/\s+/)
     .filter((word) => word.length > 2);
@@ -134,11 +101,11 @@ function sourceIsSupported(
       .filter((word) => word.length > 2),
   );
 
-  const matchedWords = sourceWords.filter(
+  const matches = sourceWords.filter(
     (word) => documentWords.has(word),
   ).length;
 
-  return matchedWords / sourceWords.length >= 0.85;
+  return matches / sourceWords.length >= 0.85;
 }
 
 export function validateComparison(
@@ -146,7 +113,8 @@ export function validateComparison(
   company: string,
   client: string,
 ): ComparisonResult {
-  const parsed = comparisonSchema.safeParse(data);
+  const parsed =
+    comparisonSchema.safeParse(data);
 
   if (!parsed.success) {
     console.error(
@@ -154,13 +122,20 @@ export function validateComparison(
       parsed.error.flatten(),
     );
 
-    throw new Error('Invalid AI response structure');
+    throw new Error(
+      'Invalid AI response structure',
+    );
   }
 
   const result = parsed.data;
 
-  if (!result.clauses.length || result.clauses.length > 150) {
-    throw new Error('Invalid clause count');
+  if (
+    !result.clauses.length ||
+    result.clauses.length > 150
+  ) {
+    throw new Error(
+      'Invalid clause count',
+    );
   }
 
   const ids = new Set<string>();
@@ -172,137 +147,111 @@ export function validateComparison(
     added: 0,
   };
 
-  const validatedClauses: Clause[] = result.clauses.map(
-    (rawClause, index) => {
-      const name = rawClause.name.trim();
-      const difference = rawClause.difference.trim();
+  for (const clause of result.clauses) {
+    if (
+      !clause.id.trim() ||
+      ids.has(clause.id) ||
+      !clause.name.trim() ||
+      !clause.difference.trim()
+    ) {
+      throw new Error(
+        'Invalid clause',
+      );
+    }
 
-      if (!name || !difference) {
-        throw new Error(
-          `Invalid clause at index ${index}`,
-        );
-      }
+    ids.add(clause.id);
 
-      let id =
-        rawClause.id?.trim() ||
-        slugify(name) ||
-        `clause-${index + 1}`;
+    const companyPresent =
+      clause.status !== 'added';
 
-      if (ids.has(id)) {
-        id = `${id}-${index + 1}`;
-      }
+    const clientPresent =
+      clause.status !== 'missing';
 
-      ids.add(id);
-
-      const companyPresent =
-        rawClause.status !== 'added';
-
-      const clientPresent =
-        rawClause.status !== 'missing';
-
-      const companySource =
-        rawClause.companySourceText?.trim() || null;
-
-      const clientSource =
-        rawClause.clientSourceText?.trim() || null;
-
-      const companyPosition =
-        rawClause.companyPosition?.trim() || null;
-
-      const clientPosition =
-        rawClause.clientPosition?.trim() || null;
-
-      const companySection =
-        rawClause.companySection?.trim() || null;
-
-      const clientSection =
-        rawClause.clientSection?.trim() || null;
-
-      /*
-       * Missing/added sides must not contain fabricated
-       * source evidence.
-       */
-      if (!companyPresent && companySource) {
-        throw new Error(
-          `Unexpected company source for added clause: ${name}`,
-        );
-      }
-
-      if (!clientPresent && clientSource) {
-        throw new Error(
-          `Unexpected client source for missing clause: ${name}`,
-        );
-      }
-
-      /*
-       * For sides that exist, require a meaningful position.
-       */
-      if (companyPresent && !companyPosition) {
-        throw new Error(
-          `Company position missing for: ${name}`,
-        );
-      }
-
-      if (clientPresent && !clientPosition) {
-        throw new Error(
-          `Client position missing for: ${name}`,
-        );
-      }
-
-      /*
-       * Verify source excerpts when the model supplied them.
-       *
-       * Do not reject an otherwise valid comparison merely
-       * because the model omitted an excerpt.
-       */
+    /*
+     * Validate the company side.
+     */
+    if (companyPresent) {
       if (
-        companyPresent &&
-        companySource &&
-        !sourceIsSupported(company, companySource)
+        !clause.companyPosition?.trim()
       ) {
-        console.warn(
-          `Could not verify company source text for clause: ${name}`,
+        throw new Error(
+          `Company position missing for ${clause.name}`,
         );
       }
 
       if (
-        clientPresent &&
-        clientSource &&
-        !sourceIsSupported(client, clientSource)
+        clause.companySourceText?.trim() &&
+        !sourceIsSupported(
+          company,
+          clause.companySourceText,
+        )
       ) {
+        /*
+         * Important:
+         * do NOT reject the entire comparison just
+         * because PDF extraction changed spacing,
+         * punctuation or line wrapping.
+         */
         console.warn(
-          `Could not verify client source text for clause: ${name}`,
+          `Company source excerpt could not be verified exactly for: ${clause.name}`,
+        );
+      }
+    } else {
+      if (
+        clause.companySourceText !== null ||
+        clause.companyPosition !== null ||
+        clause.companySection !== null
+      ) {
+        throw new Error(
+          `Company side must be null for added clause: ${clause.name}`,
+        );
+      }
+    }
+
+    /*
+     * Validate the client side.
+     */
+    if (clientPresent) {
+      if (
+        !clause.clientPosition?.trim()
+      ) {
+        throw new Error(
+          `Client position missing for ${clause.name}`,
         );
       }
 
-      counts[rawClause.status]++;
+      if (
+        clause.clientSourceText?.trim() &&
+        !sourceIsSupported(
+          client,
+          clause.clientSourceText,
+        )
+      ) {
+        console.warn(
+          `Client source excerpt could not be verified exactly for: ${clause.name}`,
+        );
+      }
+    } else {
+      if (
+        clause.clientSourceText !== null ||
+        clause.clientPosition !== null ||
+        clause.clientSection !== null
+      ) {
+        throw new Error(
+          `Client side must be null for missing clause: ${clause.name}`,
+        );
+      }
+    }
 
-      return {
-        id,
-        name,
-        status: rawClause.status,
+    counts[clause.status]++;
+  }
 
-        companySection,
-        clientSection,
-
-        companyPosition,
-        clientPosition,
-
-        companySourceText: companySource,
-        clientSourceText: clientSource,
-
-        difference,
-
-        suggestedAction:
-          rawClause.suggestedAction?.trim() || null,
-
-        confidence: rawClause.confidence,
-      };
-    },
-  );
-
+  /*
+   * Never trust the model's arithmetic.
+   * Recalculate summary based on validated clauses.
+   */
   return {
+    ...result,
     summary: counts,
-    clauses: validatedClauses,
   };
 }
