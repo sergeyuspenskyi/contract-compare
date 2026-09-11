@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@napi-rs/canvas':
+        specifier: 0.1.80
+        version: 0.1.80
       fflate:
         specifier: 0.8.3
         version: 0.8.3

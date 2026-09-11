@@ -11,6 +11,7 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.80",
     "fflate": "0.8.3",
     "lucide-react": "1.44.0",
     "mammoth": "1.12.2",

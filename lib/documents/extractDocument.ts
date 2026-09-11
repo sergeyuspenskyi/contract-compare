@@ -1,5 +1,4 @@
 import mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 import { unzipSync } from 'fflate';
 import { AppError } from '../errors';
 import { fileProblem, MAX_TEXT_CHARS } from '../limits';
@@ -13,6 +12,10 @@ export async function extractDocument(file: File): Promise<string> {
     let raw: string;
     if (pdf) {
       if (buffer.subarray(0, 5).toString() !== '%PDF-') throw new Error('Invalid PDF signature');
+      // Keep native PDF dependencies out of the DOCX execution path.
+      // Explicit import also makes the runtime dependency visible to file tracing.
+      await import('@napi-rs/canvas');
+      const { PDFParse } = await import('pdf-parse');
       const parser = new PDFParse({ data: buffer });
       try {
         const info = await parser.getInfo();
