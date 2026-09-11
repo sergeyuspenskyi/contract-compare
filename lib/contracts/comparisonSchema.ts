@@ -36,11 +36,11 @@ export const clauseSchema = z.object({
 
 export const comparisonSchema = z.object({
   summary: z.object({
-    aligned: z.number().int().nonnegative().optional(),
-    modified: z.number().int().nonnegative().optional(),
-    missing: z.number().int().nonnegative().optional(),
-    added: z.number().int().nonnegative().optional(),
-  }).optional(),
+    aligned: z.number().int().nonnegative(),
+    modified: z.number().int().nonnegative(),
+    missing: z.number().int().nonnegative(),
+    added: z.number().int().nonnegative(),
+  }),
 
   clauses: z.array(clauseSchema),
 });
