@@ -1,0 +1,6 @@
+import { Check, LoaderCircle, Files } from 'lucide-react';
+export default function AnalysisProgress({ stage, onCancel }: { stage: string; onCancel: () => void }) {
+  const items = ['Extracting contract text', 'Identifying clauses', 'Matching corresponding provisions', 'Comparing contractual positions', 'Preparing comparison'];
+  const complete = stage === 'preparing' ? 4 : stage === 'identifying' ? 1 : 0;
+  return <section className="analysis-panel" aria-busy="true"><span className="analysis-icon"><Files size={29}/></span><h2>Analyzing contracts...</h2><p>The details matter. We&apos;re comparing meaning, clause by clause.</p><ol>{items.map((label, i) => <li key={label} className={i < complete ? 'done' : i === complete ? 'active' : ''}>{i < complete ? <Check size={16}/> : i === complete ? <LoaderCircle className="spinner" size={16}/> : <span className="progress-circle"/>}{label}</li>)}</ol><p role="status" className="progress-caption">{stage === 'identifying' ? 'Identifying, matching and comparing provisions in one analysis pass.' : stage === 'preparing' ? 'Preparing your verified comparison.' : 'Extracting readable text from both documents.'}</p><button className="secondary" onClick={onCancel}>Cancel comparison</button></section>;
+}
