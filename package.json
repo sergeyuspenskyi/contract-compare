@@ -12,16 +12,17 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "fflate": "0.8.3",
-    "lucide-react": "1.44.0",
-    "mammoth": "1.12.2",
-    "next": "16.3.4",
-    "openai": "7.13.0",
-    "pdf-parse": "2.4.5",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "zod": "4.6.1"
-  },
+  "@napi-rs/canvas": "0.1.80",
+  "fflate": "0.8.3",
+  "lucide-react": "1.44.0",
+  "mammoth": "1.12.2",
+  "next": "16.3.4",
+  "openai": "7.13.0",
+  "pdf-parse": "2.4.5",
+  "react": "19.3.0",
+  "react-dom": "19.3.0",
+  "zod": "4.6.1"
+},
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.2",
