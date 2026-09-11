@@ -2,6 +2,7 @@
   "name": "contract-compare",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,7 +12,6 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@napi-rs/canvas": "0.1.80",
     "fflate": "0.8.3",
     "lucide-react": "1.44.0",
     "mammoth": "1.12.2",
@@ -34,6 +34,6 @@
     "typescript": "6.0.3"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   }
 }
